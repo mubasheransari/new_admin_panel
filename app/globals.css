@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f6f7fa;
+  --txt-dim: #6a6f7b;
+  --txt-dark: #1f2937;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--txt-dark);
+}
+
+/* Helper: gradient text similar to the Flutter reference */
+.grad-text {
+  background-image: linear-gradient(90deg, #00c6ff, #7f53fd);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Nice scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(31, 41, 55, 0.18);
+  border-radius: 999px;
+}
