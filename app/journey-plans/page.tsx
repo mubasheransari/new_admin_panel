@@ -19,10 +19,18 @@ type Supervisor = {
 
 type Location = {
   id: number | string;
-  name: string;
+  // New structured location fields returned by /api/locations
+  martName?: string;
+  area?: string;
+  cityName?: string;
+
+  // Backward compatible label field
+  name?: string;
   lat: number;
   lng: number;
-  radiusMeters: number;
+  // Either of these may exist depending on backend
+  radiusMeters?: number;
+  allowRadiusMeters?: number;
 };
 
 type JourneyPlan = {
@@ -79,6 +87,25 @@ function prettyDate(d: Date) {
   const m = months[d.getMonth()];
   const yyyy = d.getFullYear();
   return `${dd}-${m}-${yyyy}`;
+}
+
+function cap(s: any) {
+  const v = String(s ?? '').trim();
+  return v ? v.charAt(0).toUpperCase() + v.slice(1) : '';
+}
+
+function getLocationRadiusMeters(l: Location): number | undefined {
+  if (typeof l.allowRadiusMeters === 'number') return l.allowRadiusMeters;
+  if (typeof l.radiusMeters === 'number') return l.radiusMeters;
+  return undefined;
+}
+
+function locationLabel(l: Location): string {
+  const mart = cap(l.martName);
+  const area = cap(l.area);
+  const city = cap(l.cityName);
+  const composed = [mart, area, city].filter(Boolean).join(' • ');
+  return composed || cap(l.name);
 }
 
 export default function JourneyPlansPage() {
@@ -221,12 +248,17 @@ export default function JourneyPlansPage() {
     for (const id of Array.from(allSelected)) {
       const l = locationById.get(String(id));
       if (l) {
+        const radiusMeters = getLocationRadiusMeters(l);
         locationsSnapshot[String(id)] = {
           id: String(l.id),
-          name: l.name,
+          // Keep 'name' for backward compatibility but also store the structured fields
+          name: locationLabel(l),
+          martName: l.martName,
+          area: l.area,
+          cityName: l.cityName,
           lat: l.lat,
           lng: l.lng,
-          radiusMeters: l.radiusMeters,
+          radiusMeters,
         };
       }
     }
@@ -402,6 +434,7 @@ export default function JourneyPlansPage() {
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
               {locations.map((l) => {
                 const checked = activeSet.has(String(l.id));
+                const radius = getLocationRadiusMeters(l);
                 return (
                   <button
                     key={String(l.id)}
@@ -412,9 +445,13 @@ export default function JourneyPlansPage() {
                     ].join(' ')}
                   >
                     <div>
-                      <div className="text-sm font-semibold">{l.name}</div>
+                      <div className="text-sm font-semibold">{locationLabel(l)}</div>
                       <div className={checked ? 'text-xs text-white/70' : 'text-xs text-black/50'}>
-                        ({l.lat.toFixed(6)}, {l.lng.toFixed(6)}) • Radius: {Math.round(l.radiusMeters)}m
+                        {cap(l.martName)} • {cap(l.area)} • {cap(l.cityName)}
+                        <span className={checked ? 'text-white/70' : 'text-black/50'}>
+                          {' '}
+                          {radius !== undefined ? `• Radius: ${Math.round(radius)}m` : ''}
+                        </span>
                       </div>
                     </div>
                     <div className={checked ? 'text-xs font-semibold text-white' : 'text-xs font-semibold text-black/60'}>

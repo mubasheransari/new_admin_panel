@@ -9,19 +9,29 @@ import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 
 type City = { id: number; name: string };
+
 type LocationRow = {
   id: number;
   martName: string;
   area: string;
   cityId?: number;
-  cityName?: string;
+  cityName?: string; // sometimes backend returns cityName
+  city?: string;     // sometimes backend returns city
   lat: number;
   lng: number;
+  allowRadiusMeters?: number; // new
+  radiusMeters?: number;      // old/alias
   createdAt?: string;
+};
+
+const cap = (s: string) => {
+  const v = String(s || '').trimStart();
+  return v ? v.charAt(0).toUpperCase() + v.slice(1) : '';
 };
 
 export default function LocationsPage() {
   const { user, loading } = useRequireAuth(['admin']);
+
   const [cities, setCities] = useState<City[]>([]);
   const [rows, setRows] = useState<LocationRow[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -32,14 +42,15 @@ export default function LocationsPage() {
   const [cityId, setCityId] = useState<string>('');
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
+  const [allowRadiusMeters, setAllowRadiusMeters] = useState(''); // optional UI field if you want
 
   async function loadAll() {
     const [c, l] = await Promise.all([
       apiFetch<City[]>('/api/cities'),
       apiFetch<LocationRow[]>('/api/locations'),
     ]);
-    setCities(c);
-    setRows(l);
+    setCities((c || []).map((x) => ({ ...x, name: cap(x.name) })));
+    setRows(l || []);
   }
 
   useEffect(() => {
@@ -48,28 +59,37 @@ export default function LocationsPage() {
     loadAll().catch((e: any) => setErr(e?.message || 'Failed to load locations'));
   }, [loading, user]);
 
-  const cityMap = useMemo(() => new Map(cities.map((c) => [String(c.id), c.name])), [cities]);
+  const cityMap = useMemo(
+    () => new Map(cities.map((c) => [String(c.id), c.name])),
+    [cities]
+  );
 
   async function addLocation() {
     setErr(null);
     setSaving(true);
+
     try {
+      const radiusNum = allowRadiusMeters ? Number(allowRadiusMeters) : undefined;
+
       await apiFetch('/api/locations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          martName,
-          area,
+          martName: cap(martName),
+          area: cap(area),
           cityId: cityId ? Number(cityId) : undefined,
           lat: Number(lat),
           lng: Number(lng),
+          ...(radiusNum && Number.isFinite(radiusNum) ? { allowRadiusMeters: radiusNum } : {}),
         }),
       });
+
       setMartName('');
       setArea('');
       setCityId('');
       setLat('');
       setLng('');
+      setAllowRadiusMeters('');
       await loadAll();
     } catch (e: any) {
       setErr(e?.message || 'Failed to add location');
@@ -89,9 +109,10 @@ export default function LocationsPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-1">
           <CardTitle>Add Location</CardTitle>
+
           <div className="mt-4 space-y-3">
-            <Input label="Mart name" value={martName} onChange={(e) => setMartName(e.target.value)} />
-            <Input label="Area" value={area} onChange={(e) => setArea(e.target.value)} />
+            <Input label="Mart name" value={martName} onChange={(e) => setMartName(cap(e.target.value))} />
+            <Input label="Area" value={area} onChange={(e) => setArea(cap(e.target.value))} />
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold text-black/60">City</span>
@@ -114,7 +135,18 @@ export default function LocationsPage() {
               <Input label="Longitude" value={lng} onChange={(e) => setLng(e.target.value)} />
             </div>
 
-            <Button onClick={addLocation} disabled={saving || !martName || !area || !cityId || !lat || !lng}>
+            {/* Optional: only if you're using radius in Locations create */}
+            <Input
+              label="Allow radius (meters)"
+              value={allowRadiusMeters}
+              onChange={(e) => setAllowRadiusMeters(e.target.value.replace(/[^\d]/g, ''))}
+              placeholder="e.g. 150"
+            />
+
+            <Button
+              onClick={addLocation}
+              disabled={saving || !martName || !area || !cityId || !lat || !lng}
+            >
               {saving ? 'Saving…' : 'Add Location'}
             </Button>
           </div>
@@ -138,26 +170,40 @@ export default function LocationsPage() {
                   <th className="py-2">City</th>
                   <th className="py-2">Lat</th>
                   <th className="py-2">Lng</th>
+                  <th className="py-2">Radius (m)</th>
                 </tr>
               </thead>
 
               <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className="border-t border-black/5">
-                    <td className="py-3 text-black/60">{r.id}</td>
-                    <td className="py-3 font-semibold">{r.martName}</td>
-                    <td className="py-3 text-black/70">{r.area}</td>
-                    <td className="py-3 text-black/70">
-                      {r.cityName || (r.cityId != null ? cityMap.get(String(r.cityId)) : null) || '-'}
-                    </td>
-                    <td className="py-3 text-black/70">{r.lat}</td>
-                    <td className="py-3 text-black/70">{r.lng}</td>
-                  </tr>
-                ))}
+                {rows.map((r) => {
+                  const cityLabel =
+                    cap(r.cityName || r.city || '') ||
+                    (r.cityId != null ? cityMap.get(String(r.cityId)) : null) ||
+                    '-';
+
+                  const radius =
+                    typeof r.allowRadiusMeters === 'number'
+                      ? r.allowRadiusMeters
+                      : typeof r.radiusMeters === 'number'
+                      ? r.radiusMeters
+                      : '-';
+
+                  return (
+                    <tr key={r.id} className="border-t border-black/5">
+                      <td className="py-3 text-black/60">{r.id}</td>
+                      <td className="py-3 font-semibold">{cap(r.martName)}</td>
+                      <td className="py-3 text-black/70">{cap(r.area)}</td>
+                      <td className="py-3 text-black/70">{cityLabel}</td>
+                      <td className="py-3 text-black/70">{r.lat}</td>
+                      <td className="py-3 text-black/70">{r.lng}</td>
+                      <td className="py-3 text-black/70">{radius as any}</td>
+                    </tr>
+                  );
+                })}
 
                 {!rows.length ? (
                   <tr>
-                    <td className="py-6 text-center text-black/60" colSpan={6}>
+                    <td className="py-6 text-center text-black/60" colSpan={7}>
                       No locations found.
                     </td>
                   </tr>
