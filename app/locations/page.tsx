@@ -132,28 +132,32 @@ export default function LocationsPage() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="text-xs font-bold text-black/50">
-                  <th className=\"py-2\">ID</th>
-                  <th className=\"py-2\">Mart</th>
+                  <th className="py-2">ID</th>
+                  <th className="py-2">Mart</th>
                   <th className="py-2">Area</th>
                   <th className="py-2">City</th>
                   <th className="py-2">Lat</th>
                   <th className="py-2">Lng</th>
                 </tr>
               </thead>
+
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.id} className="border-t border-black/5">
-                    <td className=\"py-3 text-black/60\">{r.id}</td>
-                    <td className=\"py-3 font-semibold\">{r.martName}</td>
+                    <td className="py-3 text-black/60">{r.id}</td>
+                    <td className="py-3 font-semibold">{r.martName}</td>
                     <td className="py-3 text-black/70">{r.area}</td>
-                    <td className="py-3 text-black/70">{r.cityName || cityMap.get(String(r.cityId)) || '-'}</td>
+                    <td className="py-3 text-black/70">
+                      {r.cityName || (r.cityId != null ? cityMap.get(String(r.cityId)) : null) || '-'}
+                    </td>
                     <td className="py-3 text-black/70">{r.lat}</td>
                     <td className="py-3 text-black/70">{r.lng}</td>
                   </tr>
                 ))}
+
                 {!rows.length ? (
                   <tr>
-                    <td className="py-6 text-center text-black/60" colSpan={5}>
+                    <td className="py-6 text-center text-black/60" colSpan={6}>
                       No locations found.
                     </td>
                   </tr>
